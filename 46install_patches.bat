@@ -20,9 +20,25 @@ if errorlevel 1 (
     exit /b
 )
 
+set "PYTHON_CMD="
+
+where py >nul 2>&1
+if not errorlevel 1 set "PYTHON_CMD=py"
+
+if not defined PYTHON_CMD (
+    where python >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=python"
+)
+
+if not defined PYTHON_CMD (
+    echo Python n'est pas installe.
+    pause
+    exit /b
+)
+
 echo Installation des dépendances python
 
-py -m pip install customtkinter psutil
+cmd /c "%PYTHON_CMD% -m pip install customtkinter psutil"
 
 echo Telechargement de 46patches.pyw...
 
@@ -30,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass ^
     "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/PhallBack/46cdn/refs/heads/main/46_updates.pyw' -OutFile '46patches.pyw'"
 
 if exist "46patches.pyw" (
-    cmd /c "start 46patches.pyw"
+    cmd /c "start %PYTHON_CMD%w 46patches.pyw"
     del 46install_patches.bat
 ) else (
     echo Erreur lors du telechargement.
