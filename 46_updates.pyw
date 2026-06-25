@@ -45,13 +45,22 @@ def save_settings(data):
 
 
 def find_multimc_instances(multimc_root):
+    if not multimc_root:
+        return []
     instances_path = os.path.join(multimc_root, "instances")
     if not os.path.isdir(instances_path):
         return []
-    return [
-        d for d in os.listdir(instances_path)
-        if os.path.isdir(os.path.join(instances_path, d)) and not d.startswith("_")
-    ]
+    result = []
+    for d in os.listdir(instances_path):
+        full = os.path.join(instances_path, d)
+        if not os.path.isdir(full):
+            continue
+        if d.startswith(".") or d.startswith("_"):
+            continue
+        minecraft_dir = os.path.join(full, ".minecraft")
+        if os.path.isdir(minecraft_dir):
+            result.append(d)
+    return result
 
 
 class App(ctk.CTk):
@@ -69,7 +78,11 @@ class App(ctk.CTk):
         self._show_startup()
 
     def _clean_missing_instances(self):
-        multimc_path = self.settings.get("multimc_path")
+        multimc_path = self.settings.get("multimc_path", "")
+        if multimc_path and multimc_path.lower().endswith(".exe"):
+            multimc_path = os.path.dirname(multimc_path)
+            self.settings["multimc_path"] = multimc_path
+            save_settings(self.settings)
         instances = self.settings.get("instances", [])
         if multimc_path and instances:
             existing = find_multimc_instances(multimc_path)
@@ -221,7 +234,7 @@ class MultimcSelectFrame(ctk.CTkFrame):
             default = "Autre — choisir manuellement"
         else:
             default = display_options[0]
-            self._selected_path.set(self._found_paths[0])
+            self._selected_path.set(os.path.dirname(self._found_paths[0]))
 
         self._combo = ctk.CTkOptionMenu(
             content,
@@ -360,17 +373,14 @@ class InstanceSelectFrame(ctk.CTkFrame):
         )
         self._next_btn.pack(side="right", padx=16, pady=12)
 
-        content = ctk.CTkFrame(self, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=32, pady=20)
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(fill="x", padx=32, pady=(16, 0))
 
-        self._tags_outer = ctk.CTkFrame(content, fg_color="transparent", height=36)
-        self._tags_outer.pack(fill="x", pady=(0, 12))
-        self._tags_outer.pack_propagate(False)
-        self._tags_frame = ctk.CTkFrame(self._tags_outer, fg_color="transparent")
-        self._tags_frame.pack(fill="x")
+        self._tags_frame = ctk.CTkFrame(top, fg_color="transparent")
+        self._tags_frame.pack(fill="x", pady=(0, 10))
         self._refresh_tags()
 
-        label_row = ctk.CTkFrame(content, fg_color="transparent")
+        label_row = ctk.CTkFrame(top, fg_color="transparent")
         label_row.pack(fill="x", pady=(0, 6))
 
         ctk.CTkLabel(
@@ -381,7 +391,7 @@ class InstanceSelectFrame(ctk.CTkFrame):
 
         self._search_var = ctk.StringVar()
         self._search_var.trace_add("write", lambda *_: self._filter_list())
-        search_entry = ctk.CTkEntry(
+        ctk.CTkEntry(
             label_row,
             textvariable=self._search_var,
             placeholder_text="🔍  Rechercher...",
@@ -391,15 +401,14 @@ class InstanceSelectFrame(ctk.CTkFrame):
             text_color=COLORS["text"],
             placeholder_text_color=COLORS["text_muted"],
             height=28, corner_radius=8, width=180
-        )
-        search_entry.pack(side="right")
+        ).pack(side="right")
 
         self._list_frame = ctk.CTkScrollableFrame(
-            content, fg_color=COLORS["surface"],
+            self, fg_color=COLORS["surface"],
             scrollbar_button_color=COLORS["border"],
             corner_radius=10
         )
-        self._list_frame.pack(fill="both", expand=True)
+        self._list_frame.pack(fill="both", expand=True, padx=32, pady=(0, 8))
         self._btn_widgets = {}
         self._build_list()
 
@@ -443,10 +452,17 @@ class InstanceSelectFrame(ctk.CTkFrame):
         self._all_instances = sorted(find_multimc_instances(multimc_path))
 
         if not self._all_instances:
+            instances_path = os.path.join(multimc_path, "instances")
+            msg = (
+                f"Aucune instance trouvée.\n\n"
+                f"Chemin cherché :\n{instances_path}\n\n"
+                f"(chaque dossier doit contenir un sous-dossier .minecraft)"
+            )
             ctk.CTkLabel(
-                self._list_frame, text="Aucune instance trouvée dans ce dossier.",
-                font=ctk.CTkFont(size=12), text_color=COLORS["text_muted"]
-            ).pack(pady=20)
+                self._list_frame, text=msg,
+                font=ctk.CTkFont(size=11), text_color=COLORS["text_muted"],
+                wraplength=420, justify="left"
+            ).pack(pady=20, padx=12, anchor="w")
             return
 
         for inst in self._all_instances:
